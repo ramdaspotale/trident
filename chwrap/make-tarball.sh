@@ -11,7 +11,10 @@ rpcinfo stat systemctl umount xfs_growfs yum ; do
   ln -s chwrap $PREFIX/netapp/$BIN
 done
 
-tar --owner=0 --group=0 -C $PREFIX -cf "$2" netapp ||\
-  (echo "gnu tar failed, attempting darwin tar"; tar --uid=0 --gid=0 -C $PREFIX -cf "$2" netapp)
+if tar --version | grep 'GNU' >/dev/null; then
+    tar --owner=0 --group=0 -C $PREFIX -cf "$2" netapp
+else
+    tar --uid=0 --gid=0 -C $PREFIX -cf "$2" netapp
+fi
 
 rm -rf $PREFIX

@@ -178,8 +178,11 @@ go_env = CGO_ENABLED=0 GOOS=$(call os,$1) GOARCH=$(call arch,$1)$(if $(GOPROXY),
 
 # go_build returns the go build command for the named binary, platform, and source
 # usage: $(call go_build,$(binary_name),$(source_path),$(platform),$(linker_flags))
-go_build = $(call go_env,$3) $(GO_CMD) build -o $(call binary_path,$1,$3) -ldflags $4 $2
-go_build = $(call go_env,$3) $(GO_CMD) build -o $(call binary_path,$1,$3) -ldflags $4 $2
+go_build = echo $(call binary_path,$1,$3) && $(call go_env,$3) \
+	$(GO_CMD) build \
+	-o $(call binary_path,$1,$3) \
+	-ldflags $4 \
+	$2
 
 # chwrap_build returns a script that will build chwrap.tar for the platform
 # usage: $(call chwrap_build,$(platform),$(linker_flags))
@@ -196,7 +199,13 @@ node_prep_build = $(call go_build,node_prep,./cmd/node_prep, $1, $2)
 # trident_orchestrator, chwrap.tar, and trident_operator. chwrap.tar and trident_operator are only built for linux
 # plaforms.
 # usage: $(call binaries_for_platform,$(platform),$(linker_flags))
-binaries_for_platform = $(call go_build,tridentctl,./cli,$1,$2) $(if $(findstring darwin,$1),,&& $(call go_build,trident_orchestrator,.,$1,$2) $(if $(findstring linux,$1),&& $(call go_build,syswrap,./cmd/syswrap,$1,$2) && $(call chwrap_build,$1,$2) && $(call node_prep_build,$1,$2)))
+binaries_for_platform = $(call go_build,tridentctl,./cli,$1,$2)\
+	$(if $(findstring darwin,$1),,\
+		&& $(call go_build,trident_orchestrator,.,$1,$2)\
+		$(if $(findstring linux,$1),\
+			&& $(call go_build,syswrap,./cmd/syswrap,$1,$2) \
+			&& $(call chwrap_build,$1,$2) \
+			&& $(call node_prep_build,$1,$2) ))
 
 # build_binaries_for_platforms returns a script to build all binaries for platforms. Attempts to add current directory
 # as a safe git directory, in case GO_SHELL uses a different user than the source repo.
@@ -323,18 +332,17 @@ image_digests = for image in $(foreach platform,$1,$(call image_tag,$2,$(platfor
 default: installer images
 
 # builds binaries using configured build tool (docker or go) for platforms
+
 binaries:
-	@echo "Building Trident binaries..."
-	@$(call go_build,tridentctl,./cli,linux/amd64,"$(LDFLAGS_STR)")
-ifeq ($(PLATFORM),linux/amd64)
-	@$(call go_build,trident_orchestrator,.,linux/amd64,"$(LDFLAGS_STR)")
-	@$(call go_build,syswrap,./cmd/syswrap,linux/amd64,"$(LDFLAGS_STR)")
-	@$(call chwrap_build,linux/amd64,"$(LDFLAGS_STR)")
-	@$(call node_prep_build,linux/amd64,"$(LDFLAGS_STR)")
-endif
-ifeq ($(PLATFORM),darwin/amd64)
-	@$(call go_build,trident_orchestrator,.,darwin/amd64,"$(LDFLAGS_STR)")
-endif
+	@$(call build_binaries_for_platforms,$(PLATFORMS),$(GO_SHELL),$(LINKER_FLAGS))
+#binaries:
+#	@echo "Building Trident binaries..."
+#	@$(call go_build,tridentctl,./cli,linux/amd64,$(LINKER_FLAGS)) && \
+#	$(call go_build,trident_orchestrator,.,linux/amd64,$(LINKER_FLAGS)) && \
+#	$(call go_build,syswrap,./cmd/syswrap,linux/amd64,$(LINKER_FLAGS)) && \
+#	$(call chwrap_build,linux/amd64,$(LINKER_FLAGS)) && \
+#	$(call node_prep_build,linux/amd64,$(LINKER_FLAGS))
+
 
 operator_binaries:
 	@$(call build_operator_binaries_for_platforms,$(call operator_image_platforms,$(PLATFORMS)),$(GO_SHELL),$(OPERATOR_LINKER_FLAGS))
