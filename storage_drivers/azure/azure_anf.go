@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/RoaringBitmap/roaring/v2"
 	"github.com/google/uuid"
 	"go.uber.org/multierr"
@@ -605,6 +606,25 @@ func (d *NASStorageDriver) initializeAzureSDKClient(
 		}
 	}
 
+	// Determine cloud environment based on labels.cloud and get the correct configuration
+	var cloudConfig cloud.Configuration
+	if cloudLabel, ok := d.Config.Labels["cloud"]; ok {
+		switch cloudLabel {
+		case "AzureUSGovernment":
+			cloudConfig = cloud.AzureGovernment
+		case "AzureChina":
+			cloudConfig = cloud.AzureChina
+		case "AzurePublic":
+			cloudConfig = cloud.AzurePublic
+		default:
+			// Fallback to public cloud if the label is not recognized
+			cloudConfig = cloud.AzurePublic
+		}
+	} else {
+		// Fallback to public cloud if the label is not present
+		cloudConfig = cloud.AzurePublic
+	}
+
 	clientConfig := api.ClientConfig{
 		SubscriptionID: config.SubscriptionID,
 		AzureAuthConfig: azclient.AzureAuthConfig{
@@ -617,6 +637,7 @@ func (d *NASStorageDriver) initializeAzureSDKClient(
 		DebugTraceFlags:   config.DebugTraceFlags,
 		SDKTimeout:        sdkTimeout,
 		MaxCacheAge:       maxCacheAge,
+		Cloud:             cloudConfig,
 	}
 
 	// Try ANF driver initialization with Azure workload identity followed by Azure managed identity,

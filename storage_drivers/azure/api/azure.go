@@ -14,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	netapp "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
@@ -62,8 +63,9 @@ type ClientConfig struct {
 
 	// Options
 	DebugTraceFlags map[string]bool
-	SDKTimeout      time.Duration // Timeout applied to all calls to the Azure SDK
-	MaxCacheAge     time.Duration // The oldest data we should expect in the cached resources
+	SDKTimeout      time.Duration       // Timeout applied to all calls to the Azure SDK
+	MaxCacheAge     time.Duration       // The oldest data we should expect in the cached resources
+	Cloud           cloud.Configuration // Add this field
 }
 
 // AzureClient holds operational Azure SDK objects.
@@ -230,6 +232,7 @@ func NewDriver(config ClientConfig) (Azure, error) {
 
 	clientOptions := &arm.ClientOptions{
 		ClientOptions: policy.ClientOptions{
+			Cloud: config.Cloud,
 			Retry: policy.RetryOptions{
 				TryTimeout:    config.SDKTimeout,
 				RetryDelay:    SDKRetryDelay,
@@ -272,6 +275,20 @@ func NewDriver(config ClientConfig) (Azure, error) {
 		config:    &config,
 		sdkClient: sdkClient,
 	}, nil
+}
+
+// getCloudConfiguration returns the correct cloud.Configuration based on the provided label.
+func getCloudConfiguration(cloudLabel string) cloud.Configuration {
+	switch cloudLabel {
+	case "AzureUSGovernment":
+		return cloud.AzureGovernment
+	case "AzureChina":
+		return cloud.AzureChina
+	// Add other cloud environments as needed
+	default:
+		// Fallback to public cloud if the label is not recognized or not present
+		return cloud.AzurePublic
+	}
 }
 
 func GetAzureCredential(config ClientConfig) (credential azcore.TokenCredential, err error) {

@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 [ -n "$1" ] && [ -n "$2" ] || exit 1
 
